@@ -322,7 +322,59 @@ func TestRegionalHealthCheckDelete(t *testing.T) {
 	}
 }
 
+func enableEmptyBackendConfigWithOptionalNEG(t *testing.T, healthChecks *HealthChecks, lastHC *translator.HealthCheck, forNEG bool) {
+	t.Helper()
+	// Change to empty BackendConfig
+	bchcc := &backendconfigv1.HealthCheckConfig{}
+
+	tmp := lastHC.ForNEG
+	if forNEG {
+		lastHC.ForNEG = true
+	}
+
+	_, err := healthChecks.sync(lastHC, bchcc)
+	if err != nil {
+		t.Fatalf("unexpected err while syncing healthcheck, err %v", err)
+	}
+
+	if forNEG {
+		lastHC.ForNEG = tmp
+	}
+
+	// Verify the health check exists.
+	outputHC, err := healthChecks.Get(lastHC.Name, meta.VersionAlpha, meta.Global)
+	if err != nil {
+		t.Fatalf("expected the health check to exist, err: %v", err)
+	}
+
+	if flags.F.EnableBackendConfigHealthCheckDescription && outputHC.Description != translator.DescriptionForHealthChecksFromBackendConfig {
+		t.Fatalf("incorrect Description, is: \"%v\", want: \"%v\"", outputHC.Description, translator.DescriptionForHealthChecksFromBackendConfig)
+	}
+
+	// Verify that empty BackendConfig does not modify anything else than Description.
+	filter := func(h *translator.HealthCheck) {
+		h.Description = ""
+	}
+	filter(outputHC)
+	filter(lastHC)
+	if !reflect.DeepEqual(outputHC, lastHC) {
+		t.Fatalf("Translate healthcheck is:\n%s, want:\n%s", pretty.Sprint(outputHC), pretty.Sprint(lastHC))
+	}
+}
+
+func enableEmptyBackendConfig(t *testing.T, healthChecks *HealthChecks, lastHC *translator.HealthCheck) {
+	t.Helper()
+	enableEmptyBackendConfigWithOptionalNEG(t, healthChecks, lastHC, false)
+}
+
 func TestHealthCheckUpdate(t *testing.T) {
+	for _, flag := range []bool{true, false} {
+		flags.F.EnableBackendConfigHealthCheckDescription = flag
+		testHealthCheckUpdate(t)
+	}
+}
+
+func testHealthCheckUpdate(t *testing.T) {
 	fakeGCE := gce.NewFakeGCECloud(gce.DefaultTestClusterValues())
 
 	// Add Hooks
@@ -344,10 +396,12 @@ func TestHealthCheckUpdate(t *testing.T) {
 	fakeGCE.CreateHealthCheck(v1hc)
 
 	// Verify the health check exists
-	_, err = healthChecks.Get(hc.Name, meta.VersionGA, meta.Global)
+	outputHC, err := healthChecks.Get(hc.Name, meta.VersionGA, meta.Global)
 	if err != nil {
 		t.Fatalf("expected the health check to exist, err: %v", err)
 	}
+
+	enableEmptyBackendConfig(t, healthChecks, deepCopyHealthCheck(outputHC))
 
 	// Change to HTTPS
 	hc.Type = string(annotations.ProtocolHTTPS)
@@ -357,7 +411,7 @@ func TestHealthCheckUpdate(t *testing.T) {
 	}
 
 	// Verify the health check exists
-	_, err = healthChecks.Get(hc.Name, meta.VersionGA, meta.Global)
+	outputHC, err = healthChecks.Get(hc.Name, meta.VersionGA, meta.Global)
 	if err != nil {
 		t.Fatalf("expected the health check to exist, err: %v", err)
 	}
@@ -367,6 +421,8 @@ func TestHealthCheckUpdate(t *testing.T) {
 		t.Fatalf("expected check to be of type HTTPS")
 	}
 
+	enableEmptyBackendConfig(t, healthChecks, deepCopyHealthCheck(outputHC))
+
 	// Change to HTTP2
 	hc.Type = string(annotations.ProtocolHTTP2)
 	_, err = healthChecks.sync(hc, nil)
@@ -375,7 +431,7 @@ func TestHealthCheckUpdate(t *testing.T) {
 	}
 
 	// Verify the health check exists. HTTP2 is alpha-only.
-	_, err = healthChecks.Get(hc.Name, meta.VersionAlpha, meta.Global)
+	outputHC, err = healthChecks.Get(hc.Name, meta.VersionAlpha, meta.Global)
 	if err != nil {
 		t.Fatalf("expected the health check to exist, err: %v", err)
 	}
@@ -384,6 +440,8 @@ func TestHealthCheckUpdate(t *testing.T) {
 	if hc.Protocol() != annotations.ProtocolHTTP2 {
 		t.Fatalf("expected check to be of type HTTP2")
 	}
+
+	enableEmptyBackendConfig(t, healthChecks, deepCopyHealthCheck(outputHC))
 
 	// Change to NEG Health Check
 	hc.ForNEG = true
@@ -403,6 +461,8 @@ func TestHealthCheckUpdate(t *testing.T) {
 	if hc.Port != 0 {
 		t.Fatalf("expected health check with PortSpecification to have no Port, got %v", hc.Port)
 	}
+
+	enableEmptyBackendConfigWithOptionalNEG(t, healthChecks, deepCopyHealthCheck(hc), true)
 
 	// Change back to regular Health Check
 	hc.ForNEG = false
@@ -427,6 +487,8 @@ func TestHealthCheckUpdate(t *testing.T) {
 	if hc.Port == 0 {
 		t.Fatalf("expected health check with PortSpecification to have Port")
 	}
+
+	enableEmptyBackendConfig(t, healthChecks, deepCopyHealthCheck(hc))
 }
 
 func TestVersion(t *testing.T) {

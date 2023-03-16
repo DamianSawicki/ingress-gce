@@ -17,6 +17,7 @@ limitations under the License.
 package healthchecks
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	backendconfigv1 "k8s.io/ingress-gce/pkg/apis/backendconfig/v1"
 	"k8s.io/ingress-gce/pkg/flags"
 	"k8s.io/ingress-gce/pkg/translator"
+	"k8s.io/klog/v2"
 )
 
 // fieldDiffs encapsulate which fields are different between health checks.
@@ -34,8 +36,26 @@ type fieldDiffs struct {
 func (c *fieldDiffs) add(field, oldv, newv string) {
 	c.f = append(c.f, fmt.Sprintf("%s:%s -> %s", field, oldv, newv))
 }
-func (c *fieldDiffs) String() string { return strings.Join(c.f, ", ") }
-func (c *fieldDiffs) hasDiff() bool  { return len(c.f) > 0 }
+func (c *fieldDiffs) String() string   { return strings.Join(c.f, ", ") }
+func (c *fieldDiffs) hasDiff() bool    { return len(c.f) > 0 }
+func (c *fieldDiffs) hasOneDiff() bool { return len(c.f) == 1 }
+
+func copyViaJSON(dst, src interface{}) error {
+	var err error
+	bytes, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bytes, dst)
+}
+
+func deepCopyHealthCheck(src *translator.HealthCheck) *translator.HealthCheck {
+	dst := &translator.HealthCheck{}
+	if err := copyViaJSON(dst, src); err != nil {
+		panic(err)
+	}
+	return dst
+}
 
 func calculateDiff(old, new *translator.HealthCheck, c *backendconfigv1.HealthCheckConfig) *fieldDiffs {
 	var changes fieldDiffs
@@ -75,6 +95,14 @@ func calculateDiff(old, new *translator.HealthCheck, c *backendconfigv1.HealthCh
 	}
 	if flags.F.EnableBackendConfigHealthCheckDescription && old.Description != new.Description {
 		changes.add("Description", old.Description, new.Description)
+		// If Description is the only difference (i.e. there would be no health check update if Description was ignored),
+		// overwrite the new healthcheck so that the only attribute updated is Description.
+		if changes.hasOneDiff() {
+			klog.V(3).Infof("Copying existing HC to new HC to prevent changing something different from Description.")
+			tmp := new.Description
+			*new = *deepCopyHealthCheck(old)
+			new.Description = tmp
+		}
 	}
 
 	// TODO(bowei): Host seems to be missing.
