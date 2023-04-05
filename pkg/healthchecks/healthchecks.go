@@ -32,6 +32,7 @@ import (
 	"k8s.io/ingress-gce/pkg/loadbalancers/features"
 	"k8s.io/ingress-gce/pkg/translator"
 	"k8s.io/ingress-gce/pkg/utils"
+	"k8s.io/ingress-gce/pkg/utils/healthcheck"
 	"k8s.io/klog/v2"
 )
 
@@ -43,13 +44,27 @@ type HealthChecks struct {
 	// This is a workaround which allows us to not have to maintain
 	// a separate health checker for the default backend.
 	defaultBackendSvc types.NamespacedName
+	clusterInfo       healthcheck.ClusterInfo
 }
 
 // NewHealthChecker creates a new health checker.
 // cloud: the cloud object implementing SingleHealthCheck.
 // defaultHealthCheckPath: is the HTTP path to use for health checks.
 func NewHealthChecker(cloud HealthCheckProvider, healthCheckPath string, defaultBackendSvc types.NamespacedName) *HealthChecks {
-	return &HealthChecks{cloud, healthCheckPath, defaultBackendSvc}
+	ci := generateClusterInfo(cloud.(*gce.Cloud))
+	return &HealthChecks{cloud, healthCheckPath, defaultBackendSvc, ci}
+}
+
+func generateClusterInfo(gceCloud *gce.Cloud) healthcheck.ClusterInfo {
+	var location string
+	regionalCluster := gceCloud.Regional()
+	if regionalCluster {
+		location = gceCloud.Region()
+	} else {
+		location = gceCloud.LocalZone()
+	}
+	name := flags.F.GKEClusterName
+	return healthcheck.ClusterInfo{Name: name, Location: location, Regional: regionalCluster}
 }
 
 // new returns a *HealthCheck with default settings and specified port/protocol
@@ -67,7 +82,27 @@ func (h *HealthChecks) new(sp utils.ServicePort) *translator.HealthCheck {
 	hc.Name = sp.BackendName()
 	hc.Port = sp.NodePort
 	hc.RequestPath = h.pathFromSvcPort(sp)
+	hc.SetHealthcheckInfo(h.generateHealthcheckInfo(sp, hc.ForILB))
 	return hc
+}
+
+func (h *HealthChecks) generateHealthcheckInfo(sp utils.ServicePort, iLB bool) healthcheck.HealthcheckInfo {
+	serviceInfo := healthcheck.ServiceInfo(h.defaultBackendSvc)
+	if sp.ID.Service.Name != "" {
+		serviceInfo = healthcheck.ServiceInfo(sp.ID.Service)
+	}
+
+	ingressType := healthcheck.ExternalLB
+	if iLB {
+		ingressType = healthcheck.InternalLB
+	}
+
+	return healthcheck.HealthcheckInfo{
+		ClusterInfo:       h.clusterInfo,
+		ServiceInfo:       serviceInfo,
+		HealthcheckConfig: healthcheck.DefaultHC,
+		IngressType:       ingressType,
+	}
 }
 
 // SyncServicePort implements HealthChecker.
