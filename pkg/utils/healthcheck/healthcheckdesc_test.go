@@ -65,13 +65,11 @@ func TestGenerateHealthcheckDescription(t *testing.T) {
 		ClusterInfo:       clusterInfo,
 		ServiceInfo:       serviceInfo,
 		HealthcheckConfig: hcConfig,
-		IngressType:       InternalLB,
 	}
 	expectedDescription := "" +
 		"{\n" +
 		"    \"K8sCluster\": \"/locations/pl-central7/clusters/cluster-name\",\n" +
 		"    \"K8sResource\": \"/namespaces/testNamespace/services/service-name\",\n" +
-		"    \"K8sResourceDependency\": \"Ingress Internal Load Balancer\",\n" +
 		"    \"Config\": \"Default\"\n" +
 		"}"
 

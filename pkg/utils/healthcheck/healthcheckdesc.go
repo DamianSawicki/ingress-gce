@@ -41,25 +41,16 @@ const (
 	BackendConfigHC  HealthcheckConfig = "BackendConfig"
 )
 
-type IngressType string
-
-const (
-	InternalLB IngressType = "Ingress Internal Load Balancer"
-	ExternalLB IngressType = "Ingress External Load Balancer"
-)
-
 type HealthcheckInfo struct {
 	ClusterInfo
 	ServiceInfo
 	HealthcheckConfig
-	IngressType
 }
 
 type HealthcheckDesc struct {
-	K8sCluster            string
-	K8sResource           string
-	K8sResourceDependency IngressType
-	Config                HealthcheckConfig
+	K8sCluster  string
+	K8sResource string
+	Config      HealthcheckConfig
 }
 
 func (i *ClusterInfo) generateClusterDescription() string {
@@ -80,7 +71,6 @@ func (i *HealthcheckInfo) GenerateHealthcheckDescription() string {
 	desc := HealthcheckDesc{}
 	desc.K8sCluster = i.ClusterInfo.generateClusterDescription()
 	desc.K8sResource = i.ServiceInfo.generateK8sResourceDescription()
-	desc.K8sResourceDependency = i.IngressType
 	desc.Config = i.HealthcheckConfig
 	json, err := json.MarshalIndent(desc, "", "    ")
 	if err != nil {

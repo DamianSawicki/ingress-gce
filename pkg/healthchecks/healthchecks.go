@@ -92,16 +92,10 @@ func (h *HealthChecks) generateHealthcheckInfo(sp utils.ServicePort, iLB bool) h
 		serviceInfo = healthcheck.ServiceInfo(sp.ID.Service)
 	}
 
-	ingressType := healthcheck.ExternalLB
-	if iLB {
-		ingressType = healthcheck.InternalLB
-	}
-
 	return healthcheck.HealthcheckInfo{
 		ClusterInfo:       h.clusterInfo,
 		ServiceInfo:       serviceInfo,
 		HealthcheckConfig: healthcheck.DefaultHC,
-		IngressType:       ingressType,
 	}
 }
 

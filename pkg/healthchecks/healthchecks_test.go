@@ -516,10 +516,9 @@ func TestRolloutUpdateCustomHCDescription(t *testing.T) {
 	outputBCHCWithFlag := getSingletonHealthcheck(t, fakeGCE)
 
 	wantDesc := healthcheck.HealthcheckDesc{
-		K8sCluster:            fmt.Sprintf("/locations/%s/clusters/%s", gce.DefaultTestClusterValues().Region, gce.DefaultTestClusterValues().ClusterName),
-		K8sResource:           fmt.Sprintf("/namespaces/%s/services/%s", defaultBackendSvc.Namespace, defaultBackendSvc.Name),
-		K8sResourceDependency: "Ingress External Load Balancer",
-		Config:                "BackendConfig",
+		K8sCluster:  fmt.Sprintf("/locations/%s/clusters/%s", gce.DefaultTestClusterValues().Region, gce.DefaultTestClusterValues().ClusterName),
+		K8sResource: fmt.Sprintf("/namespaces/%s/services/%s", defaultBackendSvc.Namespace, defaultBackendSvc.Name),
+		Config:      "BackendConfig",
 	}
 	bytes, err := json.MarshalIndent(wantDesc, "", "    ")
 	if err != nil {
@@ -1373,22 +1372,16 @@ func TestSyncServicePort(t *testing.T) {
 		tc.desc = tc.desc + " with updateHCDescription"
 		copyOfWant := *tc.wantComputeHC
 		if tc.sp.BackendConfig != nil {
-			var wantLocation, wantIngressType string
+			var wantLocation string
 			if tc.regionalCluster {
 				wantLocation = gce.DefaultTestClusterValues().Region
 			} else {
 				wantLocation = gce.DefaultTestClusterValues().ZoneName
 			}
-			if tc.sp.L7ILBEnabled {
-				wantIngressType = "Ingress Internal Load Balancer"
-			} else {
-				wantIngressType = "Ingress External Load Balancer"
-			}
 			wantDesc := healthcheck.HealthcheckDesc{
-				K8sCluster:            fmt.Sprintf("/locations/%s/clusters/%s", wantLocation, gce.DefaultTestClusterValues().ClusterName),
-				K8sResource:           fmt.Sprintf("/namespaces/%s/services/%s", defaultBackendSvc.Namespace, defaultBackendSvc.Name),
-				K8sResourceDependency: healthcheck.IngressType(wantIngressType),
-				Config:                "BackendConfig",
+				K8sCluster:  fmt.Sprintf("/locations/%s/clusters/%s", wantLocation, gce.DefaultTestClusterValues().ClusterName),
+				K8sResource: fmt.Sprintf("/namespaces/%s/services/%s", defaultBackendSvc.Namespace, defaultBackendSvc.Name),
+				Config:      "BackendConfig",
 			}
 			bytes, err := json.MarshalIndent(wantDesc, "", "    ")
 			if err != nil {
