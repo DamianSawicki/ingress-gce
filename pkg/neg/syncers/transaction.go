@@ -111,6 +111,8 @@ type transactionSyncer struct {
 
 	// enableDegradedMode indicates whether we do endpoint calculation using degraded mode procedures
 	enableDegradedMode bool
+	// Enables support for Dual-Stack NEGs within the NEG Controller.
+	enableDualStackNEG bool
 
 	// podLabelPropagationConfig configures the pod label to be propagated to NEG endpoints
 	podLabelPropagationConfig labels.PodLabelPropagationConfig
@@ -168,6 +170,7 @@ func NewTransactionSyncer(
 		errorState:                false,
 		logger:                    logger,
 		enableDegradedMode:        flags.F.EnableDegradedMode,
+		enableDualStackNEG:        enableDualStackNEG,
 		podLabelPropagationConfig: lpConfig,
 		networkInfo:               networkInfo,
 	}
@@ -180,7 +183,7 @@ func NewTransactionSyncer(
 	return syncer
 }
 
-func GetEndpointsCalculator(podLister, nodeLister, serviceLister cache.Indexer, zoneGetter negtypes.ZoneGetter, syncerKey negtypes.NegSyncerKey, mode negtypes.EndpointsCalculatorMode, logger klog.Logger, enableDualStackNEG bool) negtypes.NetworkEndpointsCalculator {
+func GetEndpointsCalculator(podLister, nodeLister, serviceLister cache.Indexer, zoneGetter negtypes.ZoneGetter, syncerKey negtypes.NegSyncerKey, mode negtypes.EndpointsCalculatorMode, logger klog.Logger, enableDualStackNEG bool, syncMetricsCollector *metrics.SyncerMetrics) negtypes.NetworkEndpointsCalculator {
 	serviceKey := strings.Join([]string{syncerKey.Name, syncerKey.Namespace}, "/")
 	if syncerKey.NegType == negtypes.VmIpEndpointType {
 		nodeLister := listers.NewNodeLister(nodeLister)
@@ -196,10 +199,10 @@ func GetEndpointsCalculator(podLister, nodeLister, serviceLister cache.Indexer, 
 		podLister,
 		nodeLister,
 		serviceLister,
-		syncerKey.PortTuple.Name,
-		syncerKey.NegType,
+		syncerKey,
 		logger,
 		enableDualStackNEG,
+		syncMetricsCollector,
 	)
 }
 
@@ -244,7 +247,7 @@ func (s *transactionSyncer) syncInternalImpl() error {
 	}
 	s.logger.V(2).Info("Sync NEG", "negSyncerKey", s.NegSyncerKey.String(), "endpointsCalculatorMode", s.endpointsCalculator.Mode())
 
-	currentMap, currentPodLabelMap, err := retrieveExistingZoneNetworkEndpointMap(s.NegSyncerKey.NegName, s.zoneGetter, s.cloud, s.NegSyncerKey.GetAPIVersion(), s.endpointsCalculator.Mode())
+	currentMap, currentPodLabelMap, err := retrieveExistingZoneNetworkEndpointMap(s.NegSyncerKey.NegName, s.zoneGetter, s.cloud, s.NegSyncerKey.GetAPIVersion(), s.endpointsCalculator.Mode(), s.enableDualStackNEG)
 	if err != nil {
 		return fmt.Errorf("%w: %v", negtypes.ErrCurrentNegEPNotFound, err)
 	}

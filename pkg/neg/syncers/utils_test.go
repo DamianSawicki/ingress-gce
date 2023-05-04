@@ -1055,7 +1055,7 @@ func TestRetrieveExistingZoneNetworkEndpointMap(t *testing.T) {
 	for _, tc := range testCases {
 		tc.mutate(negCloud)
 		// tc.mode of "" will result in the default node predicate being selected, which is ok for this test.
-		endpointSets, annotationMap, err := retrieveExistingZoneNetworkEndpointMap(negName, zoneGetter, negCloud, meta.VersionGA, tc.mode)
+		endpointSets, annotationMap, err := retrieveExistingZoneNetworkEndpointMap(negName, zoneGetter, negCloud, meta.VersionGA, tc.mode, false)
 
 		if tc.expectErr {
 			if err == nil {
@@ -2337,7 +2337,7 @@ func TestValidatePod(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			if got := validatePod(tc.pod, nodeLister, serviceLister, tc.networkEndpoint, tc.serviceName, tc.isCustomEPS); !errors.Is(got, tc.expectErr) {
+			if _, got := validatePod(tc.pod, nodeLister, serviceLister, tc.networkEndpoint, tc.serviceName, tc.isCustomEPS); !errors.Is(got, tc.expectErr) {
 				t.Errorf("validatePod() = %t, expected %t\n", got, tc.expectErr)
 			}
 		})

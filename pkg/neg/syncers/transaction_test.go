@@ -1540,7 +1540,7 @@ func TestUnknownNodes(t *testing.T) {
 	}
 
 	// Check that unknown zone did not cause endpoints to be removed
-	out, _, err := retrieveExistingZoneNetworkEndpointMap(testNegName, zoneGetter, fakeCloud, meta.VersionGA, negtypes.L7Mode)
+	out, _, err := retrieveExistingZoneNetworkEndpointMap(testNegName, zoneGetter, fakeCloud, meta.VersionGA, negtypes.L7Mode, false)
 	if err != nil {
 		t.Errorf("errored retrieving existing network endpoints")
 	}
@@ -1835,7 +1835,7 @@ func TestEnableDegradedMode(t *testing.T) {
 			(s.syncer.(*syncer)).stopped = false
 			tc.modify(s)
 
-			out, _, err := retrieveExistingZoneNetworkEndpointMap(tc.negName, zoneGetter, fakeCloud, meta.VersionGA, negtypes.L7Mode)
+			out, _, err := retrieveExistingZoneNetworkEndpointMap(tc.negName, zoneGetter, fakeCloud, meta.VersionGA, negtypes.L7Mode, false)
 			if err != nil {
 				t.Errorf("errored retrieving existing network endpoints")
 			}
@@ -1848,7 +1848,7 @@ func TestEnableDegradedMode(t *testing.T) {
 				t.Errorf("syncInternal returned %v, expected %v", err, tc.expectErr)
 			}
 			err = wait.PollImmediate(time.Second, 3*time.Second, func() (bool, error) {
-				out, _, err = retrieveExistingZoneNetworkEndpointMap(tc.negName, zoneGetter, fakeCloud, meta.VersionGA, negtypes.L7Mode)
+				out, _, err = retrieveExistingZoneNetworkEndpointMap(tc.negName, zoneGetter, fakeCloud, meta.VersionGA, negtypes.L7Mode, false)
 				if err != nil {
 					return false, nil
 				}
@@ -2092,7 +2092,7 @@ func TestCollectLabelStats(t *testing.T) {
 
 func newL4ILBTestTransactionSyncer(fakeGCE negtypes.NetworkEndpointGroupCloud, mode negtypes.EndpointsCalculatorMode) (negtypes.NegSyncer, *transactionSyncer) {
 	negsyncer, ts := newTestTransactionSyncer(fakeGCE, negtypes.VmIpEndpointType, false)
-	ts.endpointsCalculator = GetEndpointsCalculator(ts.podLister, ts.nodeLister, ts.serviceLister, ts.zoneGetter, ts.NegSyncerKey, mode, klog.TODO(), false)
+	ts.endpointsCalculator = GetEndpointsCalculator(ts.podLister, ts.nodeLister, ts.serviceLister, ts.zoneGetter, ts.NegSyncerKey, mode, klog.TODO(), false, nil)
 	return negsyncer, ts
 }
 
@@ -2134,7 +2134,7 @@ func newTestTransactionSyncer(fakeGCE negtypes.NetworkEndpointGroupCloud, negTyp
 		testContext.SvcNegInformer.GetIndexer(),
 		reflector,
 		GetEndpointsCalculator(testContext.PodInformer.GetIndexer(), testContext.NodeInformer.GetIndexer(), testContext.ServiceInformer.GetIndexer(),
-			fakeZoneGetter, svcPort, mode, klog.TODO(), testContext.EnableDualStackNEG),
+			fakeZoneGetter, svcPort, mode, klog.TODO(), testContext.EnableDualStackNEG, metrics.FakeSyncerMetrics()),
 		string(kubeSystemUID),
 		testContext.SvcNegClient,
 		metrics.FakeSyncerMetrics(),

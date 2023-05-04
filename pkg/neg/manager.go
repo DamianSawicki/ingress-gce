@@ -236,6 +236,7 @@ func (manager *syncerManager) EnsureSyncers(namespace, name string, newPorts neg
 				portInfo.EpCalculatorMode,
 				manager.logger.WithValues("service", klog.KRef(syncerKey.Namespace, syncerKey.Name), "negName", syncerKey.NegName),
 				manager.enableDualStackNEG,
+				manager.syncerMetrics,
 			)
 			syncer = negsyncer.NewTransactionSyncer(
 				syncerKey,
@@ -472,6 +473,7 @@ func (manager *syncerManager) garbageCollectSyncer() {
 	for key, syncer := range manager.syncerMap {
 		if syncer.IsStopped() && !syncer.IsShuttingDown() {
 			delete(manager.syncerMap, key)
+			manager.syncerMetrics.DeleteSyncer(key)
 		}
 	}
 }
